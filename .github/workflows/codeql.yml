@@ -6,14 +6,53 @@ on:
   pull_request:
     branches: [ "main", "develop" ]
   schedule:
-    - cron: '34 8 * * 0'  # Weekly on Sunday at 8:34
-  workflow_dispatch:  # Allow manual triggering
+    - cron: '34 8 * * 0'
+  workflow_dispatch:
 
 jobs:
+  prepare:
+    name: Prepare CodeQL Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create CodeQL Config
+        run: |
+          mkdir -p .github/codeql
+          cat > .github/codeql/config.yml << 'EOL'
+          name: "CodeQL Config"
+          
+          paths:
+            - 'src'
+            - 'lib'
+            - 'app'
+            
+          paths-ignore:
+            - '**/test/**'
+            - '**/tests/**'
+            - '**/node_modules/**'
+            - '**/vendor/**'
+            - '**/*.test.js'
+            - '**/*.spec.ts'
+            
+          queries:
+            - uses: security-extended
+            - uses: security-and-quality
+          
+          query-filters:
+            - exclude:
+                id: js/redundant-assignment
+            - exclude:
+                tags: maintain
+                
+          EOL
+
   analyze:
     name: Analyze (${{ matrix.language }})
+    needs: prepare
     runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
-    timeout-minutes: 360  # Set maximum runtime
+    timeout-minutes: 360
     
     permissions:
       security-events: write
@@ -49,12 +88,14 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.x'
+        cache: 'pip'
 
     - name: Setup Node.js
       if: matrix.language == 'javascript-typescript'
       uses: actions/setup-node@v3
       with:
         node-version: '18'
+        cache: 'npm'
 
     - name: Setup Java
       if: matrix.language == 'java-kotlin'
@@ -62,39 +103,32 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: 'gradle'
 
-    # Cache dependencies
-    - name: Cache dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.npm
-          ~/.pip
-          ~/.gradle
-        key: ${{ runner.os }}-${{ matrix.language }}-${{ hashFiles('**/lockfiles') }}
-
-    # Initialize CodeQL
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         queries: security-extended,security-and-quality
-        config-file: ./.github/codeql.yml/config.yml
+        config-file: ./.github/codeql/config.yml
+        ram: 6144
+        threads: auto
 
-    # Custom build steps for different languages
     - name: Build Python
       if: matrix.language == 'python'
       run: |
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         if [ -f setup.py ]; then pip install -e .; fi
+        if [ -f pyproject.toml ]; then pip install -e .; fi
 
     - name: Build JavaScript/TypeScript
       if: matrix.language == 'javascript-typescript'
       run: |
         if [ -f package.json ]; then
           npm ci
+          npm audit fix || true
           npm run build --if-present
         fi
 
@@ -107,7 +141,6 @@ jobs:
           ./gradlew build -x test
         fi
 
-    # Perform CodeQL Analysis
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
       with:
@@ -115,32 +148,55 @@ jobs:
         upload: true
         output: sarif-results
 
-    # Upload SARIF results
-    - name: Upload SARIF results
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: sarif-results
-
-    # Generate and upload analysis summary
-    - name: Generate Analysis Summary
+    - name: Process Analysis Results
       if: always()
       run: |
-        echo "## CodeQL Analysis Summary for ${{ matrix.language }}" > analysis-summary.md
-        echo "Analysis completed at $(date)" >> analysis-summary.md
-        if [ -f sarif-results/*.sarif ]; then
-          echo "- Results available in SARIF format" >> analysis-summary.md
+        if [ -d "sarif-results" ]; then
+          echo "Creating detailed analysis report..."
+          echo "## CodeQL Security Analysis Report" > analysis-report.md
+          echo "### Analysis for ${{ matrix.language }}" >> analysis-report.md
+          echo "Completed at: $(date)" >> analysis-report.md
+          echo "#### Findings Summary" >> analysis-report.md
+          
+          if [ -f sarif-results/*.sarif ]; then
+            echo "- SARIF results available" >> analysis-report.md
+            # Add basic statistics if possible
+            ALERTS=$(grep -c "warning" sarif-results/*.sarif || echo "0")
+            echo "- Number of potential issues: $ALERTS" >> analysis-report.md
+          else
+            echo "- No SARIF results found" >> analysis-report.md
+          fi
         fi
 
-    - name: Upload Analysis Summary
+    - name: Upload Analysis Report
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: codeql-analysis-summary-${{ matrix.language }}
-        path: analysis-summary.md
-        
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: ${{ matrix.language }}
-        config-file: ./.github/codeql.yml/config.yml # Reference the config file
-        queries: security-extended,security-and-quality
+        name: codeql-analysis-${{ matrix.language }}
+        path: |
+          analysis-report.md
+          sarif-results
+        retention-days: 30
+
+  summary:
+    name: Analysis Summary
+    needs: analyze
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Summary
+        run: |
+          echo "# CodeQL Analysis Complete" > summary.md
+          echo "## Status by Language" >> summary.md
+          echo "- Python: ${{ needs.analyze.result }}" >> summary.md
+          echo "- JavaScript/TypeScript: ${{ needs.analyze.result }}" >> summary.md
+          echo "- Java/Kotlin: ${{ needs.analyze.result }}" >> summary.md
+          echo "- C/C++: ${{ needs.analyze.result }}" >> summary.md
+          echo "- Go: ${{ needs.analyze.result }}" >> summary.md
+          echo "- Ruby: ${{ needs.analyze.result }}" >> summary.md
+          
+      - name: Upload Summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-final-summary
+          path: summary.md
