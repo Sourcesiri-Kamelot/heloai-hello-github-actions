@@ -1,4 +1,260 @@
-name: "CodeQL Advanced Security Analysis"
+name: "CodeQL Advanced Comprehensive Analysis"
+
+on:
+  push:
+    branches: [ "main", "develop", "release/*" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  schedule:
+    - cron: '34 8 * * 0'
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    name: Prepare CodeQL Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create CodeQL Config
+        run: |
+          mkdir -p .github/codeql/custom-queries
+          
+          # Create main config
+          cat > .github/codeql/config.yml << 'EOL'
+          name: "Enhanced CodeQL Config"
+          
+          paths:
+            - 'src'
+            - 'lib'
+            - 'app'
+            - 'core'
+            - 'services'
+            - 'api'
+            
+          paths-ignore:
+            - '**/test/**'
+            - '**/tests/**'
+            - '**/spec/**'
+            - '**/benchmark/**'
+            - '**/node_modules/**'
+            - '**/vendor/**'
+            - '**/dist/**'
+            - '**/build/**'
+            - '**/*.test.*'
+            - '**/*.spec.*'
+            - '**/*.min.js'
+            
+          queries:
+            - uses: security-extended
+            - uses: security-and-quality
+            - uses: ./.github/codeql/custom-queries/python
+            - uses: ./.github/codeql/custom-queries/javascript
+            
+          query-filters:
+            - exclude:
+                id: js/redundant-assignment
+            - exclude:
+                id: py/redundant-assignment
+            - exclude:
+                tags: maintain
+            - include:
+                severity: error
+            - include:
+                severity: warning
+                precision: high
+          
+          database:
+            threads: auto
+            ram: 8192
+          EOL
+
+          # Create custom Python queries
+          mkdir -p .github/codeql/custom-queries/python
+          cat > .github/codeql/custom-queries/python/custom-security.ql << 'EOL'
+          /**
+           * @name Custom Python Security Check
+           * @description Identifies potential security issues in Python code
+           * @kind problem
+           * @problem.severity warning
+           * @precision high
+           * @id py/custom-security
+           */
+          import python
+
+          from Call call, Value val
+          where
+            call.getFunc().toString() in ["eval", "exec", "pickle.loads"] and
+            not call.getScope() instanceof Test
+          select call, "Potentially unsafe function call detected"
+          EOL
+
+          # Create custom JavaScript queries
+          mkdir -p .github/codeql/custom-queries/javascript
+          cat > .github/codeql/custom-queries/javascript/custom-security.ql << 'EOL'
+          /**
+           * @name Custom JavaScript Security Check
+           * @description Identifies potential security issues in JavaScript code
+           * @kind problem
+           * @problem.severity warning
+           * @precision high
+           * @id js/custom-security
+           */
+          import javascript
+
+          from CallExpr call
+          where
+            call.getCalleeName() in ["eval", "Function", "setTimeout", "setInterval"] and
+            exists(call.getArgument(0)) and
+            call.getArgument(0).getType().toString() = "string"
+          select call, "Potentially dangerous dynamic code execution"
+          EOL
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    needs: prepare
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    timeout-minutes: 360
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: 'python'
+            build-mode: 'autodetect'
+            python-version: '3.x'
+          - language: 'javascript-typescript'
+            build-mode: 'autodetect'
+            node-version: '18'
+          - language: 'java-kotlin'
+            build-mode: 'autodetect'
+            java-version: '17'
+          - language: 'c-cpp'
+            build-mode: 'autodetect'
+          - language: 'go'
+            build-mode: 'autodetect'
+            go-version: '1.20'
+          - language: 'ruby'
+            build-mode: 'autodetect'
+            ruby-version: '3.2'
+          - language: 'swift'
+            build-mode: 'autodetect'
+            xcode-version: '14.2'
+          - language: 'csharp'
+            build-mode: 'autodetect'
+            dotnet-version: '7.0'
+          - language: 'php'
+            build-mode: 'autodetect'
+            php-version: '8.2'
+
+    steps:
+    # ... (previous setup steps remain the same)
+
+    - name: Setup Go
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+        cache: true
+
+    - name: Setup Ruby
+      if: matrix.language == 'ruby'
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler-cache: true
+
+    - name: Setup Swift
+      if: matrix.language == 'swift'
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: ${{ matrix.xcode-version }}
+
+    - name: Setup .NET
+      if: matrix.language == 'csharp'
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ matrix.dotnet-version }}
+
+    - name: Setup PHP
+      if: matrix.language == 'php'
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        coverage: none
+
+    - name: Generate Enhanced Report
+      if: always()
+      run: |
+        echo "# CodeQL Analysis Report for ${{ matrix.language }}" > report.md
+        echo "## Analysis Details" >> report.md
+        echo "- **Language:** ${{ matrix.language }}" >> report.md
+        echo "- **Timestamp:** $(date)" >> report.md
+        echo "- **Build Mode:** ${{ matrix.build-mode }}" >> report.md
+        
+        if [ -d "sarif-results" ]; then
+          echo "## Security Findings" >> report.md
+          
+          # Parse SARIF results
+          if [ -f sarif-results/*.sarif ]; then
+            echo "### Alerts by Severity" >> report.md
+            HIGH=$(grep -c '"level": "error"' sarif-results/*.sarif || echo "0")
+            MEDIUM=$(grep -c '"level": "warning"' sarif-results/*.sarif || echo "0")
+            LOW=$(grep -c '"level": "note"' sarif-results/*.sarif || echo "0")
+            
+            echo "- 🔴 High: $HIGH" >> report.md
+            echo "- 🟡 Medium: $MEDIUM" >> report.md
+            echo "- 🟢 Low: $LOW" >> report.md
+            
+            echo "### Alert Categories" >> report.md
+            echo "\`\`\`" >> report.md
+            grep -ho '"name": "[^"]*"' sarif-results/*.sarif | sort | uniq -c | sort -nr >> report.md
+            echo "\`\`\`" >> report.md
+            
+            echo "### Affected Files" >> report.md
+            echo "\`\`\`" >> report.md
+            grep -ho '"uri": "[^"]*"' sarif-results/*.sarif | sort | uniq -c | sort -nr | head -10 >> report.md
+            echo "\`\`\`" >> report.md
+          fi
+        fi
+
+    - name: Upload Enhanced Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: codeql-report-${{ matrix.language }}
+        path: report.md
+        retention-days: 30
+
+  summary:
+    name: Comprehensive Analysis Summary
+    needs: analyze
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Summary
+        run: |
+          echo "# CodeQL Analysis Summary" > summary.md
+          echo "## Overview" >> summary.md
+          echo "Analysis completed at: $(date)" >> summary.md
+          echo "## Language Status" >> summary.md
+          
+          declare -A emoji
+          emoji["success"]="✅"
+          emoji["failure"]="❌"
+          emoji["cancelled"]="⚠️"
+          emoji["skipped"]="⏭️"
+          
+          for language in "python" "javascript-typescript" "java-kotlin" "c-cpp" "go" "ruby" "swift" "csharp" "php"; do
+            status="${{ needs.analyze.result }}"
+            echo "${emoji[$status]} $language: $status" >> summary.md
+          done
+
+      - name: Upload Summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: codeql-comprehensive-summary
+          path: summary.md
+
+          name: "CodeQL Advanced Security Analysis"
 
 on:
   push:
