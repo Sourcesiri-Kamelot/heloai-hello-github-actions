@@ -1,182 +1,61 @@
-name: Step 0 - Welcome and Setup
+name: Repository Setup and Welcome
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  get_current_step:
-    name: Check Current Step
+  setup-repository:
+    name: Step 0 - Welcome and Setup
     runs-on: ubuntu-latest
-    outputs:
-      current_step: ${{ steps.get_step.outputs.current_step }}
-      is_valid: ${{ steps.validate_step.outputs.is_valid }}
-    
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Get Current Step
-        id: get_step
+      - name: Initialize Step Counter
+        id: setup-step
         run: |
-          if [ -f ./.github/steps/-step.txt ]; then
-            echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
-          else
-            echo "current_step=0" >> $GITHUB_OUTPUT
-            echo "0" > ./.github/steps/-step.txt
+          mkdir -p .github/steps
+          if [ ! -f .github/steps/-step.txt ]; then
+            echo "0" > .github/steps/-step.txt
           fi
+          echo "Current step: $(cat .github/steps/-step.txt)"
 
-      - name: Validate Step
-        id: validate_step
+      - name: Validate Step Counter
         run: |
-          STEP=$(cat ./.github/steps/-step.txt)
-          if [[ "$STEP" =~ ^[0-9]+$ ]]; then
-            echo "is_valid=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
-
-  on_start:
-    name: Initialize Repository
-    needs: get_current_step
-    if: >-
-      ${{ !github.event.repository.is_template &&
-          needs.get_current_step.outputs.current_step == 0 &&
-          needs.get_current_step.outputs.is_valid == 'true' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Repository
-        run: |
-          # Validate current step
-          CURRENT_STEP=$(cat .github/steps/-step.txt)
-          if [ "$CURRENT_STEP" != "0" ]; then
-            echo "Error: Expected step 0, found step $CURRENT_STEP"
+          STEP=$(cat .github/steps/-step.txt)
+          if ! [[ "$STEP" =~ ^[0-9]+$ ]]; then
+            echo "Error: Step counter is invalid."
             exit 1
           fi
 
-          # Create welcome branch
-          BRANCH="welcome-workflow"
-          echo "Creating branch: $BRANCH"
-          git checkout -b $BRANCH
-
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Create initial commit
-          git commit --allow-empty -m "Initial setup: Welcome workflow"
-          
-          # Push branch
-          echo "Pushing branch: $BRANCH"
-          git push --set-upstream origin $BRANCH
-
-          # Return to main branch
-          git checkout main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update Step Counter
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 0
-          to_step: 1
-          branch_name: welcome-workflow
-
-      - name: Verify Setup
-        run: |
-          # Verify branch creation
-          if ! git branch -r | grep -q "origin/welcome-workflow"; then
-            echo "Error: welcome-workflow branch was not created"
-            exit 1
-          fi
-
-          # Verify step update
-          NEW_STEP=$(cat .github/steps/-step.txt)
-          if [ "$NEW_STEP" != "1" ]; then
-            echo "Error: Step was not updated correctly"
-            exit 1
-          fi
-
-  notify_completion:
-    name: Notification
-    needs: [get_current_step, on_start]
-    if: always()
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Check Status
-        run: |
-          if [ "${{ needs.on_start.result }}" == "success" ]; then
-            echo "✅ Welcome workflow setup completed successfully!"
-          else
-            echo "❌ Setup encountered some issues. Please check the logs."
-          fi
-
-          name: Welcome
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  welcome-job:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Welcome Message
-        run: echo "Welcome to the repository!"
-
-        name: Welcome
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  welcome-job:
+  welcome-message:
+    name: Post Welcome Message
+    needs: setup-repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-      
-      - name: Hello World
-        uses: actions/hello-world-javascript-action@v1
-        with:
-          who-to-greet: 'Repository Visitor'
 
-          name: Welcome
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  welcome-job:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
       - name: Post Welcome Comment
         uses: actions/github-script@v6
         with:
           script: |
             github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: context.issue.number || 1,  # Default to issue/PR #1 if none provided
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Welcome to the repository!'
             })
+
+      - name: Greet Repository Visitor
+        uses: actions/hello-world-javascript-action@v1
+        with:
+          who-to-greet: 'Repository Visitor'
