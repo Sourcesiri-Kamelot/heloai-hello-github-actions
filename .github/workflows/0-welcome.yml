@@ -1,91 +1,127 @@
-name: Step 0, Welcome
+name: Step 0 - Welcome and Setup
 
-# This step triggers after the learner creates a new repository from the template.
-# This workflow updates from step 0 to step 1.
-
-# This will run every time we create push a commit to `main`.
-# Reference: https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows
 on:
   workflow_dispatch:
   push:
     branches:
       - main
 
-# Reference: https://docs.github.com/en/actions/security-guides/automatic-token-authentication
 permissions:
-  # Need `contents: read` to checkout the repository.
-  # Need `contents: write` to update the step metadata.
   contents: write
 
 jobs:
-  # Get the current step to only run the main job when the learner is on the same step.
   get_current_step:
-    name: Check current step number
+    name: Check Current Step
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - id: get_step
-        run: |
-          echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
     outputs:
       current_step: ${{ steps.get_step.outputs.current_step }}
+      is_valid: ${{ steps.validate_step.outputs.is_valid }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get Current Step
+        id: get_step
+        run: |
+          if [ -f ./.github/steps/-step.txt ]; then
+            echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "current_step=0" >> $GITHUB_OUTPUT
+            echo "0" > ./.github/steps/-step.txt
+          fi
+
+      - name: Validate Step
+        id: validate_step
+        run: |
+          STEP=$(cat ./.github/steps/-step.txt)
+          if [[ "$STEP" =~ ^[0-9]+$ ]]; then
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+          fi
 
   on_start:
-    name: On start
+    name: Initialize Repository
     needs: get_current_step
-
-    # We will only run this action when:
-    # 1. This repository isn't the template repository.
-    # 2. The step is currently 0.
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/contexts
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/expressions
     if: >-
-      ${{ !github.event.repository.is_template
-          && needs.get_current_step.outputs.current_step == 0 }}
-
-    # We'll run Ubuntu for performance instead of Mac or Windows.
+      ${{ !github.event.repository.is_template &&
+          needs.get_current_step.outputs.current_step == 0 &&
+          needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
-      # We'll need to check out the repository so that we can edit the README.
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Let's get all the branches.
+          fetch-depth: 0
 
-      # Make a branch, file, and commit for the learner.
-      - name: Prepare a branch, and file
+      - name: Setup Repository
         run: |
-          echo "Make sure we are on step 0"
-          if [ "$(cat .github/steps/-step.txt)" != 0 ]
-          then
-            echo "Current step is not 0"
-            exit 0
+          # Validate current step
+          CURRENT_STEP=$(cat .github/steps/-step.txt)
+          if [ "$CURRENT_STEP" != "0" ]; then
+            echo "Error: Expected step 0, found step $CURRENT_STEP"
+            exit 1
           fi
 
-          echo "Make a branch"
-          BRANCH=welcome-workflow
+          # Create welcome branch
+          BRANCH="welcome-workflow"
+          echo "Creating branch: $BRANCH"
           git checkout -b $BRANCH
 
-          echo "Make a commit"
-          git config user.name github-actions[bot]
-          git config user.email github-actions[bot]@users.noreply.github.com
-          git commit --allow-empty --message="Create an empty commit"
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          echo "Push"
+          # Create initial commit
+          git commit --allow-empty -m "Initial setup: Welcome workflow"
+          
+          # Push branch
+          echo "Pushing branch: $BRANCH"
           git push --set-upstream origin $BRANCH
 
-          echo "Restore main"
+          # Return to main branch
           git checkout main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # In README.md, switch step 0 for step 1.
-      - name: Update to step 1
+      - name: Update Step Counter
         uses: skills/action-update-step@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           from_step: 0
           to_step: 1
           branch_name: welcome-workflow
+
+      - name: Verify Setup
+        run: |
+          # Verify branch creation
+          if ! git branch -r | grep -q "origin/welcome-workflow"; then
+            echo "Error: welcome-workflow branch was not created"
+            exit 1
+          fi
+
+          # Verify step update
+          NEW_STEP=$(cat .github/steps/-step.txt)
+          if [ "$NEW_STEP" != "1" ]; then
+            echo "Error: Step was not updated correctly"
+            exit 1
+          fi
+
+  notify_completion:
+    name: Notification
+    needs: [get_current_step, on_start]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check Status
+        run: |
+          if [ "${{ needs.on_start.result }}" == "success" ]; then
+            echo "✅ Welcome workflow setup completed successfully!"
+          else
+            echo "❌ Setup encountered some issues. Please check the logs."
+          fi
