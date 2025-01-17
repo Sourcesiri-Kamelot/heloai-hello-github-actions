@@ -80,7 +80,7 @@ jobs:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
         queries: security-extended,security-and-quality
-        config-file: ./.github/codeql/codeql-config.yml
+        config-file: ./.github/codeql.yml/config.yml
 
     # Custom build steps for different languages
     - name: Build Python
@@ -142,5 +142,5 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
-        config-file: ./.github/codeql/codeql-config.yml  # Reference the config file
+        config-file: ./.github/codeql.yml/config.yml # Reference the config file
         queries: security-extended,security-and-quality
