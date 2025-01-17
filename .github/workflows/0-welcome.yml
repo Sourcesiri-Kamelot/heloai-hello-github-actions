@@ -138,3 +138,21 @@ jobs:
     steps:
       - name: Welcome Message
         run: echo "Welcome to the repository!"
+
+        name: Welcome
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  welcome-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Hello World
+        uses: actions/hello-world-javascript-action@v1
+        with:
+          who-to-greet: 'Repository Visitor'
