@@ -1,64 +1,142 @@
-name: Step 4, Merge your pull request
+name: "Step 4 - Merge Pull Request"
 
-# This step triggers after a pull request is merged to `main`.
-# This workflow updates from step 4 to step 5.
-
-# This will run every time we create push a commit to `main`.
-# Reference: https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows
 on:
   workflow_dispatch:
   push:
     branches:
       - main
 
-# Reference: https://docs.github.com/en/actions/security-guides/automatic-token-authentication
 permissions:
-  # Need `contents: read` to checkout the repository.
-  # Need `contents: write` to update the step metadata.
   contents: write
+  pull-requests: read
 
 jobs:
-  # Get the current step to only run the main job when the learner is on the same step.
   get_current_step:
-    name: Check current step number
+    name: Check Current Step
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - id: get_step
-        run: |
-          echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
     outputs:
       current_step: ${{ steps.get_step.outputs.current_step }}
+      is_valid: ${{ steps.validate_step.outputs.is_valid }}
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-  on_merge:
-    name: On merge
+      - name: Get Current Step
+        id: get_step
+        run: |
+          if [ -f ./.github/steps/-step.txt ]; then
+            echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "Error: Step file not found"
+            exit 1
+          fi
+
+      - name: Validate Step
+        id: validate_step
+        run: |
+          STEP=$(cat ./.github/steps/-step.txt)
+          if [[ "$STEP" == "4" ]]; then
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+          fi
+
+  verify_merge:
+    name: Verify Merge Status
     needs: get_current_step
-
-    # We will only run this action when:
-    # 1. This repository isn't the template repository.
-    # 2. The step is currently 4.
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/contexts
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/expressions
     if: >-
-      ${{ !github.event.repository.is_template
-          && needs.get_current_step.outputs.current_step == 4 }}
-
-    # We'll run Ubuntu for performance instead of Mac or Windows.
+      ${{ !github.event.repository.is_template &&
+          needs.get_current_step.outputs.current_step == 4 &&
+          needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
-      # We'll need to check out the repository so that we can edit the README.
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Let's get all the branches.
+          fetch-depth: 0
 
-      # In README.md, switch step 4 for step 5.
-      - name: Update to step 5
+      - name: Check Merge Status
+        id: check_merge
+        run: |
+          # Check if welcome-workflow branch exists in history
+          if git branch -r | grep -q "origin/welcome-workflow"; then
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+            echo "Welcome workflow branch not found in history"
+          fi
+          
+          # Check if welcome.yml exists in main branch
+          if [ -f ".github/workflows/welcome.yml" ]; then
+            echo "workflow_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "workflow_exists=false" >> $GITHUB_OUTPUT
+            echo "Welcome workflow file not found in main branch"
+          fi
+
+      - name: Verify Workflow Content
+        if: steps.check_merge.outputs.workflow_exists == 'true'
+        run: |
+          WORKFLOW_FILE=".github/workflows/welcome.yml"
+          
+          # Check for required elements
+          if ! grep -q "name:" "$WORKFLOW_FILE" || \
+             ! grep -q "jobs:" "$WORKFLOW_FILE" || \
+             ! grep -q "steps:" "$WORKFLOW_FILE"; then
+            echo "Error: Workflow file missing required elements"
+            exit 1
+          fi
+
+      - name: Update Progress
+        if: success()
         uses: skills/action-update-step@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           from_step: 4
           to_step: 5
           branch_name: welcome-workflow
+
+  provide_feedback:
+    name: Provide Feedback
+    needs: [get_current_step, verify_merge]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check Results
+        run: |
+          if [ "${{ needs.verify_merge.result }}" == "success" ]; then
+            echo "✅ Merge verification successful! Moving to step 5."
+            echo "Your workflow has been successfully merged to main."
+          else
+            echo "❌ Some issues were found. Please check:"
+            echo "  - Ensure you've merged the 'welcome-workflow' branch to main"
+            echo "  - Verify the welcome.yml file exists in .github/workflows/"
+            echo "  - Confirm the workflow file contains all required elements:"
+            echo "    * name:"
+            echo "    * jobs:"
+            echo "    * steps:"
+            echo ""
+            echo "If you're stuck, you can:"
+            echo "1. Go to the Pull Requests tab"
+            echo "2. Find the pull request from 'welcome-workflow' to 'main'"
+            echo "3. Click the 'Merge pull request' button"
+            echo "4. Click 'Confirm merge'"
+          fi
+
+  cleanup:
+    name: Cleanup Check
+    needs: [verify_merge]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Verify Merge Status
+        if: needs.verify_merge.result != 'success'
+        run: |
+          echo "Merge verification did not succeed. Please fix the issues and try again."
+          exit 1
