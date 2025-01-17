@@ -125,3 +125,16 @@ jobs:
           else
             echo "❌ Setup encountered some issues. Please check the logs."
           fi
+
+          name: Welcome
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  welcome-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Welcome Message
+        run: echo "Welcome to the repository!"
