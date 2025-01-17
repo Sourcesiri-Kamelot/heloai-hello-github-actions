@@ -32,6 +32,17 @@ This repository demonstrates the use of GitHub Actions to automate various aspec
 7. **.github/workflows/build.yml**: Handles building the project and managing dependencies.
 8. **.github/workflows/debug.yml**: Handles debugging and fixing issues.
 9. **.github/workflows/codeql.yml**: Handles security analysis.
+10. **.github/workflows/quantum-computing.yml**: Handles quantum computing tasks, including setting up the environment and running quantum algorithms and simulations.
+11. **.github/workflows/web3-build.yml**: Handles building and deploying web 3 projects, including setting up the environment and installing necessary libraries.
+12. **.github/workflows/security-enhancements.yml**: Handles advanced security tasks, including setting up the environment, running security scans, penetration tests, and vulnerability assessments.
+13. **.github/workflows/finance-bots.yml**: Handles the creation and management of finance bots, including setting up environments for crypto bots, forex bots, and sports betting bots.
+
+## Instructions on How to Trigger the Workflows Manually
+
+1. **Navigate to the Actions tab**: Go to the Actions tab of your repository on GitHub.
+2. **Select the workflow**: Choose the workflow you want to trigger from the list of workflows.
+3. **Click on the "Run workflow" button**: Click the "Run workflow" button to manually trigger the workflow.
+4. **Monitor the workflow**: Monitor the workflow run in the Actions tab to ensure it completes successfully.
 
 ## Step 5: Trigger the workflow
 
