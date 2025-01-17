@@ -156,3 +156,27 @@ jobs:
         uses: actions/hello-world-javascript-action@v1
         with:
           who-to-greet: 'Repository Visitor'
+
+          name: Welcome
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  welcome-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Post Welcome Comment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Welcome to the repository!'
+            })
