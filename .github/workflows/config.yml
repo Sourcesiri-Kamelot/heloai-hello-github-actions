@@ -1,0 +1,52 @@
+name: CodeQL Config
+
+# Paths to exclude from analysis
+paths-ignore:
+  - '**/test/**'
+  - '**/tests/**'
+  - '**/node_modules/**'
+  - '**/*.test.js'
+  - '**/*.spec.ts'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/vendor/**'
+
+# Paths to include in analysis
+paths:
+  - 'src'
+  - 'lib'
+  - 'app'
+  - 'core'
+
+# Query configurations
+queries:
+  - name: Extended Security Queries
+    uses: security-extended
+  - name: Security and Quality Queries
+    uses: security-and-quality
+  # Add custom query suites
+  - name: Custom Queries
+    uses: ./.github/codeql/custom-queries
+
+# Query filtering
+query-filters:
+  - exclude:
+      id: js/redundant-assignment
+  - exclude:
+      severity: warning
+  - exclude:
+      severity: recommendation
+  - include:
+      severity: error
+
+# Additional configuration
+disable-default-queries: false
+packs:
+  - codeql/java-queries
+  - codeql/python-queries
+  - codeql/javascript-queries
+
+# Database configuration
+database:
+  max-disk: 10GB
+  threads: auto
