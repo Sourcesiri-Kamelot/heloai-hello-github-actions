@@ -31,7 +31,6 @@ jobs:
           else
             echo "Error: Step file not found"
             exit 1
-          fi
 
       - name: Validate Step
         id: validate_step
@@ -41,7 +40,6 @@ jobs:
             echo "is_valid=true" >> $GITHUB_OUTPUT
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
 
   validate_actions:
     name: Validate Workflow Actions
@@ -144,6 +142,46 @@ jobs:
             echo "        uses: actions/hello-world-javascript-action@v1"
             echo "        with:"
             echo "          who-to-greet: 'Repository Visitor'"
+
+  add_actions:
+    name: Add Actions to Workflow
+    needs: get_current_step
+    if: >-
+      ${{ !github.event.repository.is_template &&
+          needs.get_current_step.outputs.current_step == 3 &&
+          needs.get_current_step.outputs.is_valid == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add Actions
+        run: |
+          WORKFLOW_FILE=".github/workflows/welcome.yml"
+          
+          # Add actions to the workflow
+          echo "jobs:" >> $WORKFLOW_FILE
+          echo "  new-job:" >> $WORKFLOW_FILE
+          echo "    runs-on: ubuntu-latest" >> $WORKFLOW_FILE
+          echo "    steps:" >> $WORKFLOW_FILE
+          echo "      - name: Checkout Repository" >> $WORKFLOW_FILE
+          echo "        uses: actions/checkout@v4" >> $WORKFLOW_FILE
+          echo "      - name: Hello World" >> $WORKFLOW_FILE
+          echo "        uses: actions/hello-world-javascript-action@v1" >> $WORKFLOW_FILE
+          echo "        with:" >> $WORKFLOW_FILE
+          echo "          who-to-greet: 'Repository Visitor'" >> $WORKFLOW_FILE
+
+      - name: Validate New Actions
+        run: |
+          WORKFLOW_FILE=".github/workflows/welcome.yml"
+          
+          # Check for the new actions
+          if ! grep -q "new-job:" "$WORKFLOW_FILE"; then
+            echo "Error: New actions not added"
+            exit 1
           fi
 
   cleanup:

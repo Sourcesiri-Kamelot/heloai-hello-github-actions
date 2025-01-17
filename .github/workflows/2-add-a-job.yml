@@ -31,7 +31,6 @@ jobs:
           else
             echo "Error: Step file not found"
             exit 1
-          fi
 
       - name: Validate Step
         id: validate_step
@@ -41,7 +40,6 @@ jobs:
             echo "is_valid=true" >> $GITHUB_OUTPUT
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
 
   validate_jobs:
     name: Validate Welcome Workflow Jobs
@@ -132,6 +130,42 @@ jobs:
             echo "    steps:"
             echo "      - name: Welcome Message"
             echo "        run: echo 'Hello!'"
+
+  add_job:
+    name: Add Job to Workflow
+    needs: get_current_step
+    if: >-
+      ${{ !github.event.repository.is_template &&
+          needs.get_current_step.outputs.current_step == 2 &&
+          needs.get_current_step.outputs.is_valid == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add Job
+        run: |
+          WORKFLOW_FILE=".github/workflows/welcome.yml"
+          
+          # Add a new job to the workflow
+          echo "jobs:" >> $WORKFLOW_FILE
+          echo "  new-job:" >> $WORKFLOW_FILE
+          echo "    runs-on: ubuntu-latest" >> $WORKFLOW_FILE
+          echo "    steps:" >> $WORKFLOW_FILE
+          echo "      - name: New Job Step" >> $WORKFLOW_FILE
+          echo "        run: echo 'New job added!'" >> $WORKFLOW_FILE
+
+      - name: Validate New Job
+        run: |
+          WORKFLOW_FILE=".github/workflows/welcome.yml"
+          
+          # Check for the new job
+          if ! grep -q "new-job:" "$WORKFLOW_FILE"; then
+            echo "Error: New job not added"
+            exit 1
           fi
 
   cleanup:
