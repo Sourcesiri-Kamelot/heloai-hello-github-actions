@@ -1,0 +1,18 @@
+name: Verify Merge Status
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  verify-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Verify Merge
+        run: |
+          git fetch origin +refs/pull/${{ github.event.number }}/merge
+          git checkout -qf FETCH_HEAD
+          echo "Merge verified for PR #${{ github.event.number }}"
