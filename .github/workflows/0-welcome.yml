@@ -9,8 +9,8 @@ on:
 permissions:
   issues: write  # Update this line to give the workflow permission to interact with issues
   contents: write
-
-jobs:
+  pull-requests: write
+jobs: 
   setup-repository:
     name: Step 0 - Welcome and Setup
     runs-on: ubuntu-latest
