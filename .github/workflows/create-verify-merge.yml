@@ -2,17 +2,24 @@ name: Verify Merge Status
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 jobs:
   verify-merge:
+    name: Verify Pull Request Merge
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Verify Merge
+      - name: Fetch and Verify Merge
         run: |
-          git fetch origin +refs/pull/${{ github.event.number }}/merge
+          echo "Fetching merge commit for PR #${{ github.event.pull_request.number }}..."
+          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
           git checkout -qf FETCH_HEAD
-          echo "Merge verified for PR #${{ github.event.number }}"
+          echo "✅ Merge verified for PR #${{ github.event.pull_request.number }}"
