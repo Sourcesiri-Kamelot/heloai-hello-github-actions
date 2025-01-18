@@ -24,11 +24,10 @@ jobs:
           if [ ! -f .github/steps/step.txt ]; then
             echo "0" > .github/steps/step.txt
           fi
-          echo "Current step: $(cat .github/steps/step.txt)"
+          echo "STEP=$(cat .github/steps/step.txt)" >> $GITHUB_ENV
 
       - name: Validate Step Counter
         run: |
-          STEP=$(cat .github/steps/step.txt)
           if ! [[ "$STEP" =~ ^[0-9]+$ ]]; then
             echo "Error: Step counter is invalid."
             exit 1
@@ -47,7 +46,7 @@ jobs:
         with:
           script: |
             github.rest.issues.createComment({
-              issue_number: 1, // Default to issue/PR #1
+              issue_number: 1,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: 'Welcome to the repository!'
