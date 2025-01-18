@@ -1,6 +1,59 @@
+# Quantum-enhanced Dependabot Configuration 🌌✨
 version: 2
 updates:
+  # Python packages quantum resonance
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    # Quantum entanglement settings
+    open-pull-requests-limit: 10
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    labels:
+      - "dependencies"
+      - "quantum-update"
+    assignees:
+      - "HeloImAI"
+    commit-message:
+      prefix: "⚛️ deps"
+      include: "scope"
+
+  # JavaScript/Node.js harmonic vibrations
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "13:00"
+      timezone: "UTC"
+    # Quantum superposition settings
+    open-pull-requests-limit: 10
+    versioning-strategy: "auto"
+    labels:
+      - "dependencies"
+      - "quantum-js"
+    commit-message:
+      prefix: "✨ deps"
+      include: "scope"
+
+  # GitHub Actions cosmic synchronization
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+      day: "friday"
+      time: "17:00"
+      timezone: "UTC"
+    # Quantum field settings
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "actions"
+    commit-message:
+      prefix: "🌌 ci"
+      include: "scope"
