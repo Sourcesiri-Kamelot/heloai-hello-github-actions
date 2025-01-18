@@ -38,11 +38,11 @@ jobs:
         id: validate_step
         run: |
           STEP=$(cat ./.github/steps/-step.txt)
-          if [[ "$STEP" == "1" ]]; then
-            echo "is_valid=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_valid=false" >> $GITHUB_OUTPUT
-
+           if [[ "$(cat ./.github/steps/-step.txt)" == "4" ]]; then
+              echo "is_valid=true" >> $GITHUB_OUTPUT
+           else
+               echo "is_valid=false" >> $GITHUB_OUTPUT
+                 fi
   validate_workflow:
     name: Validate Welcome Workflow
     needs: get_current_step
