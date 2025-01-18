@@ -27,8 +27,10 @@ jobs:
       - name: Get Current Step
         id: get_step
         run: |
-          if [ -f ./.github/steps/-step.txt ]; then
-            echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
+          STEP_FILE=".github/steps/-step.txt"
+          if [ -f "$STEP_FILE" ]; then
+            CURRENT_STEP=$(cat "$STEP_FILE")
+            echo "current_step=$CURRENT_STEP" >> $GITHUB_OUTPUT
           else
             echo "Error: Step file not found"
             exit 1
@@ -37,68 +39,60 @@ jobs:
       - name: Validate Step
         id: validate_step
         run: |
-          STEP=$(cat ./.github/steps/-step.txt)
-          if [[ "$STEP" == "4" ]]; then
+          if [[ "$(cat ./.github/steps/-step.txt)" == "4" ]]; then
             echo "is_valid=true" >> $GITHUB_OUTPUT
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
 
   verify_merge:
     name: Verify Merge Status
     needs: get_current_step
     if: >-
-      ${{ !github.event.repository.is_template &&
-          needs.get_current_step.outputs.current_step == 4 &&
+      ${{ needs.get_current_step.outputs.current_step == '4' &&
           needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Check Merge Status
-        id: check_merge
+      - name: Check if Branch Exists
+        id: check_branch
         run: |
-          # Check if welcome-workflow branch exists in history
           if git branch -r | grep -q "origin/welcome-workflow"; then
             echo "branch_exists=true" >> $GITHUB_OUTPUT
           else
             echo "branch_exists=false" >> $GITHUB_OUTPUT
-            echo "Welcome workflow branch not found in history"
           fi
-          
-          # Check if welcome.yml exists in main branch
+
+      - name: Check Workflow File in Main
+        id: check_workflow_file
+        run: |
+          git fetch origin main
+          git checkout origin/main
           if [ -f ".github/workflows/welcome.yml" ]; then
             echo "workflow_exists=true" >> $GITHUB_OUTPUT
           else
             echo "workflow_exists=false" >> $GITHUB_OUTPUT
-            echo "Welcome workflow file not found in main branch"
           fi
 
-      - name: Verify Workflow Content
-        if: steps.check_merge.outputs.workflow_exists == 'true'
+      - name: Validate Workflow File Contents
+        if: steps.check_workflow_file.outputs.workflow_exists == 'true'
         run: |
           WORKFLOW_FILE=".github/workflows/welcome.yml"
-          
-          # Check for required elements
           if ! grep -q "name:" "$WORKFLOW_FILE" || \
              ! grep -q "jobs:" "$WORKFLOW_FILE" || \
              ! grep -q "steps:" "$WORKFLOW_FILE"; then
-            echo "Error: Workflow file missing required elements"
+            echo "Error: Workflow file is incomplete or missing required elements"
             exit 1
           fi
 
       - name: Update Progress
         if: success()
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 4
-          to_step: 5
-          branch_name: welcome-workflow
+        run: |
+          STEP_FILE=".github/steps/-step.txt"
+          echo "5" > "$STEP_FILE"
+          echo "Progress updated to step 5."
 
   provide_feedback:
     name: Provide Feedback
@@ -107,36 +101,34 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Check Results
+      - name: Feedback for Merge Status
         run: |
           if [ "${{ needs.verify_merge.result }}" == "success" ]; then
-            echo "✅ Merge verification successful! Moving to step 5."
-            echo "Your workflow has been successfully merged to main."
+            echo "✅ Merge verification successful! Proceeding to step 5."
           else
-            echo "❌ Some issues were found. Please check:"
-            echo "  - Ensure you've merged the 'welcome-workflow' branch to main"
-            echo "  - Verify the welcome.yml file exists in .github/workflows/"
-            echo "  - Confirm the workflow file contains all required elements:"
+            echo "❌ Merge verification failed. Please check:"
+            echo "  - Ensure the branch 'welcome-workflow' is merged into 'main'"
+            echo "  - Verify the workflow file '.github/workflows/welcome.yml' exists"
+            echo "  - Ensure the workflow file contains the required fields:"
             echo "    * name:"
             echo "    * jobs:"
             echo "    * steps:"
             echo ""
-            echo "If you're stuck, you can:"
-            echo "1. Go to the Pull Requests tab"
-            echo "2. Find the pull request from 'welcome-workflow' to 'main'"
-            echo "3. Click the 'Merge pull request' button"
-            echo "4. Click 'Confirm merge'"
+            echo "Manual Steps to Merge:"
+            echo "1. Navigate to the Pull Requests tab in GitHub."
+            echo "2. Locate the pull request from 'welcome-workflow' to 'main'."
+            echo "3. Click 'Merge Pull Request' and confirm."
           fi
 
   cleanup:
-    name: Cleanup Check
-    needs: [verify_merge]
-    if: always()
+    name: Cleanup
+    needs: verify_merge
     runs-on: ubuntu-latest
-    
+    if: always()
+
     steps:
-      - name: Verify Merge Status
-        if: needs.verify_merge.result != 'success'
+      - name: Delete Feature Branch
+        if: needs.verify_merge.result == 'success'
         run: |
-          echo "Merge verification did not succeed. Please fix the issues and try again."
-          exit 1
+          echo "Deleting 'welcome-workflow' branch..."
+          git push origin --delete welcome-workflow || echo "Branch already deleted."
