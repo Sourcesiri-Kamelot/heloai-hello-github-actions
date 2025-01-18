@@ -26,8 +26,10 @@ jobs:
       - name: Get Current Step
         id: get_step
         run: |
-          if [ -f ./.github/steps/-step.txt ]; then
-            echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
+          STEP_FILE=".github/steps/-step.txt"
+          if [ -f "$STEP_FILE" ]; then
+            CURRENT_STEP=$(cat "$STEP_FILE")
+            echo "current_step=$CURRENT_STEP" >> $GITHUB_OUTPUT
           else
             echo "Error: Step file not found"
             exit 1
@@ -41,14 +43,12 @@ jobs:
             echo "is_valid=true" >> $GITHUB_OUTPUT
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
 
   validate_jobs:
     name: Validate Welcome Workflow Jobs
     needs: get_current_step
     if: >-
-      ${{ !github.event.repository.is_template &&
-          needs.get_current_step.outputs.current_step == 2 &&
+      ${{ needs.get_current_step.outputs.current_step == '2' &&
           needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
@@ -56,57 +56,55 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Check Workflow File
         id: check_file
         run: |
-          if [ ! -f ".github/workflows/welcome.yml" ]; then
+          WORKFLOW_FILE=".github/workflows/welcome.yml"
+          if [ ! -f "$WORKFLOW_FILE" ]; then
             echo "Error: welcome.yml workflow file not found"
             exit 1
           fi
 
       - name: Validate Basic Structure
-        uses: skills/action-check-file@v1
-        with:
-          file: ".github/workflows/welcome.yml"
-          search: "jobs:"
-
-      - name: Detailed Job Validation
         run: |
           WORKFLOW_FILE=".github/workflows/welcome.yml"
-          
-          # Check for required job elements
-          if ! grep -q "jobs:" "$WORKFLOW_FILE"; then
-            echo "Error: Missing jobs section"
-            exit 1
-          fi
-          
-          # Check for at least one job definition
-          if ! grep -q "  [a-zA-Z0-9_-]*:" "$WORKFLOW_FILE" || \
-             ! grep -q "    runs-on:" "$WORKFLOW_FILE"; then
-            echo "Error: No properly defined jobs found"
-            exit 1
-          fi
-          
-          # Verify job has required elements
-          if ! grep -q "    steps:" "$WORKFLOW_FILE"; then
-            echo "Error: Job missing steps section"
+
+          # Check for 'jobs:' section
+          if ! grep -q "^jobs:" "$WORKFLOW_FILE"; then
+            echo "Error: Missing 'jobs:' section"
             exit 1
           fi
 
-      - name: Update Progress
+          # Check for at least one job
+          if ! grep -q "  [a-zA-Z0-9_-]*:" "$WORKFLOW_FILE"; then
+            echo "Error: No jobs defined in the 'jobs:' section"
+            exit 1
+          fi
+
+          # Validate 'runs-on' and 'steps'
+          if ! grep -q "    runs-on:" "$WORKFLOW_FILE"; then
+            echo "Error: Missing 'runs-on' parameter in at least one job"
+            exit 1
+          fi
+          if ! grep -q "    steps:" "$WORKFLOW_FILE"; then
+            echo "Error: Missing 'steps' section in at least one job"
+            exit 1
+          fi
+
+          echo "All job validations passed!"
+
+      - name: Update Step Progress
         if: success()
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 2
-          to_step: 3
-          branch_name: welcome-workflow
+        run: |
+          STEP_FILE=".github/steps/-step.txt"
+          echo "3" > "$STEP_FILE"
+          echo "Step updated to 3."
 
   provide_feedback:
     name: Provide Feedback
-    needs: [get_current_step, validate_jobs]
+    needs: [validate_jobs]
     if: always()
     runs-on: ubuntu-latest
     
@@ -114,7 +112,7 @@ jobs:
       - name: Check Results
         run: |
           if [ "${{ needs.validate_jobs.result }}" == "success" ]; then
-            echo "✅ Job validation successful! Moving to step 3."
+            echo "✅ Job validation successful! Proceed to step 3."
             echo "Your workflow now has properly configured jobs."
           else
             echo "❌ Some issues were found. Please check:"
@@ -132,17 +130,3 @@ jobs:
             echo "    steps:"
             echo "      - name: Welcome Message"
             echo "        run: echo 'Hello!'"
-          fi
-
-  cleanup:
-    name: Cleanup Check
-    needs: [validate_jobs]
-    if: always()
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Verify Job Status
-        if: needs.validate_jobs.result != 'success'
-        run: |
-          echo "Job validation did not succeed. Please fix the issues and try again."
-          exit 1
