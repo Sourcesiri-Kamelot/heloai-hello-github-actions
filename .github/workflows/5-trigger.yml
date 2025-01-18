@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_run:
     workflows:
-      - Post welcome comment
+      - Post welcome comment # Replace with the exact name of the triggering workflow
     types:
       - completed
 
@@ -50,8 +50,7 @@ jobs:
     name: Verify Workflow Trigger
     needs: get_current_step
     if: >-
-      ${{ !github.event.repository.is_template &&
-          needs.get_current_step.outputs.current_step == 5 &&
+      ${{ needs.get_current_step.outputs.current_step == 5 &&
           needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
@@ -61,7 +60,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check Welcome Workflow
+      - name: Check Workflow File
         id: check_workflow
         run: |
           if [ ! -f ".github/workflows/welcome.yml" ]; then
@@ -69,69 +68,63 @@ jobs:
             exit 1
           fi
 
-      - name: Verify Workflow Run
+      - name: Verify Triggering Workflow Run
         id: verify_run
         run: |
-          # Check if the workflow has been triggered
           if [[ "${{ github.event.workflow_run.conclusion }}" == "success" ]]; then
             echo "workflow_triggered=true" >> $GITHUB_OUTPUT
-            echo "Workflow was successfully triggered and completed"
           else
             echo "workflow_triggered=false" >> $GITHUB_OUTPUT
-            echo "Workflow hasn't been triggered or completed yet"
+            echo "Triggering workflow has not completed successfully"
           fi
 
       - name: Update Progress
         if: steps.verify_run.outputs.workflow_triggered == 'true'
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 5
-          to_step: X
-          branch_name: test-workflow
+        run: |
+          STEP_FILE=".github/steps/-step.txt"
+          echo "6" > "$STEP_FILE"
+          echo "Step progress updated to 6."
 
   provide_feedback:
     name: Provide Feedback
     needs: [get_current_step, verify_workflow_trigger]
     if: always()
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Check Results
+      - name: Actionable Feedback
         run: |
           if [ "${{ needs.verify_workflow_trigger.result }}" == "success" ]; then
-            echo "✅ Workflow trigger verification successful!"
-            echo "Congratulations! You've completed all steps!"
+            echo "✅ Workflow triggered and completed successfully!"
+            echo "Congratulations! You've completed Step 5."
           else
-            echo "❌ Some items need attention:"
-            echo "  - Check if welcome.yml exists in .github/workflows/"
-            echo "  - Verify the workflow has been triggered"
-            echo "  - Ensure the welcome comment workflow completed successfully"
+            echo "❌ Workflow trigger validation failed. Please check:"
+            echo "  - Ensure the 'Post welcome comment' workflow exists and is configured correctly."
+            echo "  - Verify the workflow completes successfully."
             echo ""
-            echo "To trigger the workflow:"
-            echo "1. Make a change to trigger the workflow"
-            echo "2. Push the change to your repository"
-            echo "3. Go to the Actions tab to monitor the workflow"
+            echo "Manual Trigger Steps:"
+            echo "1. Make a change to your repository to trigger the workflow."
+            echo "2. Push the change."
+            echo "3. Monitor the workflow under the Actions tab."
           fi
 
   completion_check:
     name: Final Completion Check
-    needs: [verify_workflow_trigger]
+    needs: verify_workflow_trigger
     if: always()
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Final Status
+      - name: Final Summary
         run: |
           if [ "${{ needs.verify_workflow_trigger.result }}" == "success" ]; then
-            echo "🎉 Congratulations! You've completed the GitHub Actions course!"
-            echo "Here's what you've learned:"
-            echo "  ✓ Creating workflows"
-            echo "  ✓ Adding jobs and steps"
-            echo "  ✓ Using actions"
-            echo "  ✓ Triggering workflows"
-            echo "  ✓ Managing workflow runs"
+            echo "🎉 Congratulations! You've successfully completed the GitHub Actions course!"
+            echo "Here's a summary of your achievements:"
+            echo "  ✓ Created workflows"
+            echo "  ✓ Added jobs and steps"
+            echo "  ✓ Utilized GitHub Actions"
+            echo "  ✓ Triggered and validated workflows"
+            echo "  ✓ Managed workflow runs"
           else
-            echo "Keep going! You're almost there!"
-            echo "Need help? Check the workflow run logs for detailed feedback."
-          fi
+            echo "Keep going! You're so close to finishing."
+            echo "Refer to the provided feedback to fix any issues."
