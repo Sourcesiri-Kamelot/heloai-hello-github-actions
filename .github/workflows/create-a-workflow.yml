@@ -1,10 +1,10 @@
 name: Step 1 - Create a Workflow
 
 on:
-  workflow_dispatch: # Allows manual triggering of the workflow
-  push: # Triggers the workflow on push events
+  workflow_dispatch:
+  push:
     branches:
-      - main # Specify the branch you want to trigger the workflow for
+      - main
 
 permissions:
   contents: write
@@ -26,7 +26,7 @@ jobs:
       - name: Get Current Step
         id: get_step
         run: |
-          STEP_FILE=".github/steps/-step.txt"
+          STEP_FILE=".github/steps/step.txt"
           if [ -f "$STEP_FILE" ]; then
             CURRENT_STEP=$(cat "$STEP_FILE")
             echo "current_step=$CURRENT_STEP" >> $GITHUB_OUTPUT
@@ -37,19 +37,17 @@ jobs:
       - name: Validate Step
         id: validate_step
         run: |
-          STEP=$(cat ./.github/steps/-step.txt)
-           if [[ "$(cat ./.github/steps/-step.txt)" == "4" ]]; then
-              echo "is_valid=true" >> $GITHUB_OUTPUT
-           else
-               echo "is_valid=false" >> $GITHUB_OUTPUT
-                 fi
+          STEP=$(cat .github/steps/step.txt)
+          if [[ "$STEP" == "4" ]]; then
+            echo "is_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_valid=false" >> $GITHUB_OUTPUT
+          fi
+
   validate_workflow:
     name: Validate Welcome Workflow
     needs: get_current_step
-    if: >-
-      ${{ !github.event.repository.is_template &&
-          needs.get_current_step.outputs.current_step == '1' &&
-          needs.get_current_step.outputs.is_valid == 'true' }}
+    if: ${{ !github.event.repository.is_template && needs.get_current_step.outputs.current_step == '1' && needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -74,7 +72,6 @@ jobs:
         run: |
           WORKFLOW_FILE=".github/workflows/welcome.yml"
 
-          # Check for essential sections
           if ! grep -q "^on:" "$WORKFLOW_FILE"; then
             echo "Error: Missing workflow trigger ('on' section)"
             exit 1
@@ -98,7 +95,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const stepFile = '.github/steps/-step.txt';
+            const stepFile = '.github/steps/step.txt';
             fs.writeFileSync(stepFile, '2');
             console.log('Step updated to 2.');
 
