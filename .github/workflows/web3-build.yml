@@ -1,0 +1,49 @@
+name: Web 3 Build and Deployment
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  setup-web3-environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install Web3.js
+        run: |
+          npm install web3
+
+      - name: Install Ethers.js
+        run: |
+          npm install ethers
+
+  build-and-deploy-web3:
+    runs-on: ubuntu-latest
+    needs: setup-web3-environment
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build Web 3 Project
+        run: |
+          npm run build
+
+      - name: Deploy Web 3 Project
+        run: |
+          npm run deploy
