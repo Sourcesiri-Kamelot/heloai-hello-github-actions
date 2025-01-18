@@ -26,8 +26,10 @@ jobs:
       - name: Get Current Step
         id: get_step
         run: |
-          if [ -f ./.github/steps/-step.txt ]; then
-            echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
+          STEP_FILE=".github/steps/-step.txt"
+          if [ -f "$STEP_FILE" ]; then
+            CURRENT_STEP=$(cat "$STEP_FILE")
+            echo "current_step=$CURRENT_STEP" >> $GITHUB_OUTPUT
           else
             echo "Error: Step file not found"
             exit 1
@@ -41,14 +43,13 @@ jobs:
             echo "is_valid=true" >> $GITHUB_OUTPUT
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
 
   validate_actions:
     name: Validate Workflow Actions
     needs: get_current_step
     if: >-
       ${{ !github.event.repository.is_template &&
-          needs.get_current_step.outputs.current_step == 3 &&
+          needs.get_current_step.outputs.current_step == '3' &&
           needs.get_current_step.outputs.is_valid == 'true' }}
     runs-on: ubuntu-latest
 
@@ -56,95 +57,82 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Basic Structure Check
-        uses: skills/action-check-file@v1
-        with:
-          file: ".github/workflows/welcome.yml"
-          search: "steps:"
-
-      - name: Detailed Action Validation
+      - name: Validate Steps and Actions
         run: |
           WORKFLOW_FILE=".github/workflows/welcome.yml"
-          
-          # Check for steps section
+
+          # Ensure workflow file exists
+          if [ ! -f "$WORKFLOW_FILE" ]; then
+            echo "Error: Workflow file '$WORKFLOW_FILE' not found."
+            exit 1
+          fi
+
+          # Validate steps section
           if ! grep -q "    steps:" "$WORKFLOW_FILE"; then
-            echo "Error: Missing steps section in job"
-            exit 1
-          fi
-          
-          # Check for action usage
-          if ! grep -q "      uses:" "$WORKFLOW_FILE"; then
-            echo "Error: No actions are being used in the workflow"
-            exit 1
-          fi
-          
-          # Verify checkout action
-          if ! grep -q "actions/checkout@" "$WORKFLOW_FILE"; then
-            echo "Warning: Checkout action not found"
-          fi
-          
-          # Check for proper step formatting
-          if ! grep -q "      - name:" "$WORKFLOW_FILE"; then
-            echo "Error: Steps should have names"
+            echo "Error: Missing 'steps:' section in the workflow."
             exit 1
           fi
 
-      - name: Check Action References
+          # Validate action usage
+          if ! grep -q "      uses:" "$WORKFLOW_FILE"; then
+            echo "Error: No GitHub Actions are used in the workflow."
+            exit 1
+          fi
+
+          # Check for required action components
+          if ! grep -q "actions/checkout@" "$WORKFLOW_FILE"; then
+            echo "Warning: 'actions/checkout@' is missing. It's recommended for accessing repository files."
+          fi
+
+          # Ensure each step has a name
+          if ! grep -q "      - name:" "$WORKFLOW_FILE"; then
+            echo "Error: Each step must have a descriptive 'name'."
+            exit 1
+          fi
+
+      - name: List Actions Used
         run: |
-          WORKFLOW_FILE=".github/workflows/welcome.yml"
-          
-          # Create list of used actions
-          echo "Actions found in workflow:"
-          grep -A 1 "      - name:" "$WORKFLOW_FILE" || true
-          
-          # Verify action syntax
-          while IFS= read -r line; do
-            if [[ $line =~ uses:\ ([a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+@) ]]; then
-              echo "✓ Valid action reference found: $line"
-            fi
-          done < "$WORKFLOW_FILE"
+          echo "Actions used in the workflow:"
+          grep "uses:" .github/workflows/welcome.yml || echo "No actions found."
 
       - name: Update Progress
         if: success()
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 3
-          to_step: 4
-          branch_name: welcome-workflow
+        run: |
+          STEP_FILE=".github/steps/-step.txt"
+          echo "4" > "$STEP_FILE"
+          echo "Step updated to 4."
 
   provide_feedback:
     name: Provide Feedback
-    needs: [get_current_step, validate_actions]
+    needs: [validate_actions]
     if: always()
     runs-on: ubuntu-latest
     
     steps:
-      - name: Action Check Results
+      - name: Action Validation Results
         run: |
           if [ "${{ needs.validate_actions.result }}" == "success" ]; then
-            echo "✅ Actions validation successful! Moving to step 4."
-            echo "Your workflow now includes proper GitHub Actions."
+            echo "✅ Actions validation successful! You are now on step 4."
+            echo "Your workflow includes properly configured actions."
           else
-            echo "❌ Some issues were found. Please check:"
-            echo "  - Ensure your workflow has a steps: section"
-            echo "  - Each step should have a name"
-            echo "  - Include at least one GitHub Action using 'uses:'"
+            echo "❌ Some issues were found. Please address the following:"
+            echo "  - Ensure the 'steps:' section is included in your jobs."
+            echo "  - Add at least one GitHub Action using 'uses:'."
+            echo "  - Every step should have a descriptive 'name'."
             echo ""
-            echo "Example of valid action usage:"
+            echo "Example of valid step with actions:"
             echo "jobs:"
-            echo "  welcome-job:"
+            echo "  example-job:"
             echo "    runs-on: ubuntu-latest"
             echo "    steps:"
-            echo "      - name: Checkout Repository"
+            echo "      - name: Checkout Code"
             echo "        uses: actions/checkout@v4"
-            echo "      - name: Hello World"
+            echo "      - name: Greet User"
             echo "        uses: actions/hello-world-javascript-action@v1"
             echo "        with:"
-            echo "          who-to-greet: 'Repository Visitor'"
-          fi
+            echo "          who-to-greet: 'GitHub User'"
 
   cleanup:
     name: Cleanup Check
@@ -156,5 +144,5 @@ jobs:
       - name: Verify Action Status
         if: needs.validate_actions.result != 'success'
         run: |
-          echo "Action validation did not succeed. Please fix the issues and try again."
+          echo "❌ Action validation did not succeed. Please fix the identified issues and try again."
           exit 1
