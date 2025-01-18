@@ -34,7 +34,11 @@ jobs:
           if ! [[ "$STEP" =~ ^[0-9]+$ ]]; then
             echo "Error: Step counter is invalid."
             exit 1
-          fi
+
+      - name: Add requirements.txt
+        run: |
+          echo "requirements.txt" > requirements.txt
+          echo "Added requirements.txt file."
 
   welcome-message:
     name: Post Welcome Message

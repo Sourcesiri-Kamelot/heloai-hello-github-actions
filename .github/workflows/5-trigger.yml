@@ -34,7 +34,6 @@ jobs:
           else
             echo "Error: Step file not found"
             exit 1
-          fi
 
       - name: Validate Step
         id: validate_step

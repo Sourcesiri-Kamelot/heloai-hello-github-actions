@@ -32,7 +32,6 @@ jobs:
           else
             echo "Error: Step file not found"
             exit 1
-          fi
 
       - name: Validate Step
         id: validate_step
@@ -42,7 +41,6 @@ jobs:
             echo "is_valid=true" >> $GITHUB_OUTPUT
           else
             echo "is_valid=false" >> $GITHUB_OUTPUT
-          fi
 
   verify_merge:
     name: Verify Merge Status
@@ -126,7 +124,6 @@ jobs:
             echo "2. Find the pull request from 'welcome-workflow' to 'main'"
             echo "3. Click the 'Merge pull request' button"
             echo "4. Click 'Confirm merge'"
-          fi
 
   cleanup:
     name: Cleanup Check
@@ -140,3 +137,34 @@ jobs:
         run: |
           echo "Merge verification did not succeed. Please fix the issues and try again."
           exit 1
+
+  merge_pull_request:
+    name: Merge Pull Request
+    needs: get_current_step
+    if: >-
+      ${{ !github.event.repository.is_template &&
+          needs.get_current_step.outputs.current_step == 4 &&
+          needs.get_current_step.outputs.is_valid == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge Pull Request
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git merge welcome-workflow
+          git push origin main
+
+      - name: Validate Merge
+        run: |
+          if git log -1 --pretty=%B | grep -q "Merge branch 'welcome-workflow'"; then
+            echo "Merge successful"
+          else
+            echo "Merge failed"
+            exit 1
