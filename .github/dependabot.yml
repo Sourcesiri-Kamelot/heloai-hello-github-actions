@@ -1,6 +1,665 @@
 version: 2
-updates:
+  # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "daily"
+      time: "04:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "actions"
+      - "automated"
+    reviewers:
+      - Sourcesiri-Kamelot
+    assignees:
+      - Sourcesiri-Kamelot
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    open-pull-requests-limit: 10
+    rebase-strategy: "auto"
+    automerge: true
+
+  # npm dependencies with custom registry
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "05:00"
+      timezone: "UTC"
+    registries:
+      - registry-name: "npm-private-registry"
+        url: "https://npm.pkg.github.com"
+        username: "Sourcesiri-Kamelot"
+        password: "${{secrets.GITHUB_TOKEN}}"
+    groups:
+      production-deps:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "dev-*"
+          - "@types/*"
+      development-deps:
+        patterns:
+          - "dev-*"
+          - "@types/*"
+    ignore:
+      - dependency-name: "lodash"
+        versions: ["5.x"]
+      - dependency-name: "@types/*"
+        update-types: ["version-update:semver-patch"]
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "chore"
+    open-pull-requests-limit: 15
+    automerge: true
+
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+    registries:
+      - url: "https://pypi.org/simple"
+    groups:
+      ai-ml:
+        patterns:
+          - "tensorflow*"
+          - "torch*"
+          - "transformers"
+          - "scikit-learn"
+        update-types:
+          - "minor"
+          - "patch"
+      data-science:
+        patterns:
+          - "pandas"
+          - "numpy"
+          - "matplotlib"
+    labels:
+      - "dependencies"
+      - "python"
+      - "ai-ml"
+    reviewers:
+      - Sourcesiri-Kamelot
+    assignees:
+      - Sourcesiri-Kamelot
+    automerge: true
+    requirements-updates: true
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "07:00"
+    labels:
+      - "dependencies"
+      - "docker"
+    ignore:
+      - dependency-name: "node"
+        versions: ["13.x", "15.x"]
+      - dependency-name: "python"
+        versions: ["2.x"]
+    reviewers:
+      - Sourcesiri-Kamelot
+    automerge: true
+
+  # Terraform dependencies
+  - package-ecosystem: "terraform"
+    directory: "/infrastructure"
+    schedule:
+      interval: "weekly"
+    groups:
+      cloud-providers:
+        patterns:
+          - "aws-*"
+          - "google-*"
+          - "azure-*"
+    labels:
+      - "dependencies"
+      - "infrastructure"
+    reviewers:
+      - Sourcesiri-Kamelot
+    commit-message:
+      prefix: "tf"
+
+  # Composer (PHP) dependencies
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "php"
+    reviewers:
+      - Sourcesiri-Kamelot
+    automerge: true
+
+  # Maven (Java) dependencies
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "dependencies"
+      - "java"
+
+  # Gradle dependencies
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "java"
+    reviewers:
+      - Sourcesiri-Kamelot
+
+  # Cargo (Rust) dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # Go modules
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "go"
+
+  # NuGet (.NET) dependencies
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "dotnet"
+
+  # Security updates (Priority)
+  - package-ecosystem: "all"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "00:00"
+    labels:
+      - "dependencies"
+      - "security"
+      - "priority"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+    reviewers:
+      - Sourcesiri-Kamelot
+    assignees:
+      - Sourcesiri-Kamelot
+    target-branch: "develop"
+    commit-message:
+      prefix: "security"
+      include: "scope"
+    open-pull-requests-limit: 20
+    automerge: true
+
+registries:
+  npm-github:
+    type: npm-registry
+    url: https://npm.pkg.github.com
+    token: ${{secrets.GITHUB_TOKEN}}
+  docker-github:
+    type: docker-registry
+    url: ghcr.io
+    username: ${{secrets.GHCR_USERNAME}}
+    password: ${{secrets.GHCR_TOKEN}}
+
+    environment:
+  production:
+    - package-ecosystem: "all"
+      directory: "/production"
+      schedule:
+        interval: "monthly"
+        day: "monday"
+        time: "03:00"
+      require-approval: true
+      labels:
+        - "production"
+        - "high-risk"
+      commit-message:
+        prefix: "prod"
+      target-branch: "main"
+      versioning-strategy: "lockfile-only"
+
+  staging:
+    - package-ecosystem: "all"
+      directory: "/staging"
+      schedule:
+        interval: "weekly"
+      labels:
+        - "staging"
+      target-branch: "staging"
+
+# ML Model Dependencies
+ml-dependencies:
+  - package-ecosystem: "pip"
+    directory: "/ml-models"
+    schedule:
+      interval: "daily"
+    groups:
+      deep-learning:
+        patterns:
+          - "tensorflow*"
+          - "torch*"
+          - "keras*"
+          - "transformers"
+          - "pytorch-lightning"
+        update-types:
+          - "minor"
+          - "patch"
+      vision:
+        patterns:
+          - "opencv-python*"
+          - "pillow"
+          - "albumentations"
+          - "imgaug"
+      nlp:
+        patterns:
+          - "spacy*"
+          - "nltk"
+          - "gensim"
+          - "allennlp*"
+      optimization:
+        patterns:
+          - "optuna"
+          - "hyperopt"
+          - "ray"
+          - "wandb"
+    labels:
+      - "ml-dependencies"
+      - "ai"
+      - "automated"
+
+# Data Science Tools
+data-science:
+  - package-ecosystem: "pip"
+    directory: "/data-science"
+    schedule:
+      interval: "weekly"
+    groups:
+      core:
+        patterns:
+          - "pandas"
+          - "numpy"
+          - "scipy"
+          - "statsmodels"
+      visualization:
+        patterns:
+          - "matplotlib"
+          - "seaborn"
+          - "plotly"
+          - "bokeh"
+      data-processing:
+        patterns:
+          - "dask"
+          - "vaex"
+          - "modin"
+          - "polars"
+
+# Development Tools
+dev-tools:
+  - package-ecosystem: "pip"
+    directory: "/dev-tools"
+    schedule:
+      interval: "weekly"
+    groups:
+      testing:
+        patterns:
+          - "pytest*"
+          - "hypothesis"
+          - "coverage"
+      linting:
+        patterns:
+          - "black"
+          - "flake8"
+          - "pylint"
+          - "mypy"
+      documentation:
+        patterns:
+          - "sphinx"
+          - "mkdocs"
+          - "pdoc"
+
+# Cloud Provider Dependencies
+cloud:
+  - package-ecosystem: "pip"
+    directory: "/cloud"
+    schedule:
+      interval: "weekly"
+    groups:
+      aws:
+        patterns:
+          - "boto3"
+          - "awscli"
+          - "sagemaker*"
+      gcp:
+        patterns:
+          - "google-cloud*"
+          - "tensorflow-cloud"
+      azure:
+        patterns:
+          - "azure*"
+          - "azureml*"
+
+# Container and Orchestration
+containers:
+  - package-ecosystem: "docker"
+    directory: "/containers"
+    schedule:
+      interval: "weekly"
+    groups:
+      base-images:
+        patterns:
+          - "python"
+          - "nvidia/cuda"
+          - "tensorflow/tensorflow"
+          - "pytorch/pytorch"
+      tools:
+        patterns:
+          - "jupyter"
+          - "mlflow"
+          - "airflow"
+
+# Custom Scripts and Tools
+custom-tools:
+  - package-ecosystem: "npm"
+    directory: "/tools"
+    schedule:
+      interval: "weekly"
+    groups:
+      visualization:
+        patterns:
+          - "d3"
+          - "three.js"
+          - "plotly.js"
+      ui-frameworks:
+        patterns:
+          - "react"
+          - "vue"
+          - "svelte"
+      build-tools:
+        patterns:
+          - "webpack"
+          - "vite"
+          - "parcel"
+
+# Version Control Integration
+version-control:
+  branch-protection:
+    required-reviews: 2
+    dismiss-stale-reviews: true
+    require-up-to-date: true
+  merge-strategy:
+    method: "squash"
+    commit-title: "conventional"
+  changelog:
+    enabled: true
+    template: ".github/changelog-template.md"
+
+# Custom Scripts Integration
+scripts:
+  pre-update:
+    - "scripts/backup-dependencies.sh"
+    - "scripts/validate-versions.py"
+  post-update:
+    - "scripts/update-lockfiles.sh"
+    - "scripts/run-integration-tests.sh"
+
+# Additional Security Controls
+security-controls:
+  vulnerability-alerts:
+    minimum-severity: "moderate"
+    auto-fix: true
+  scanning:
+    enabled: true
+    tools:
+      - "codeql"
+      - "snyk"
+      - "trivy"
+  secret-scanning:
+    enabled: true
+    patterns:
+      - type: "aws-access-key"
+      - type: "github-token"
+      - type: "api-key"
+
+      I'll expand with more comprehensive security, building, and coding configurations:
+yamlCopy# Adding to the previous dependabot.yml
+
+# Enhanced Security Controls
+security-enhanced:
+  advanced-protection:
+    # Code scanning configurations
+    code-scanning:
+      enabled: true
+      schedule: "0 */4 * * *"  # Every 4 hours
+      severity-levels:
+        - critical
+        - high
+        - medium
+      scan-types:
+        - vulnerability
+        - secret
+        - dependency
+      custom-patterns:
+        - pattern: '(?i)(api[_-]?key|secret[_-]?key)'
+          description: "Potential API key exposure"
+        - pattern: '(?i)(password|passwd|pwd)'
+          description: "Potential password exposure"
+      
+    # SAST (Static Application Security Testing)
+    sast:
+      enabled: true
+      tools:
+        - name: "SonarQube"
+          config: "sonar-project.properties"
+        - name: "ESLint Security"
+          config: ".eslintrc.security.js"
+        - name: "Bandit"
+          config: ".bandit"
+      rules:
+        - id: "sql-injection"
+          severity: "critical"
+        - id: "xss"
+          severity: "high"
+
+    # DAST (Dynamic Application Security Testing)
+    dast:
+      enabled: true
+      tools:
+        - name: "OWASP ZAP"
+          target: "https://your-staging-app.com"
+        - name: "Burp Suite"
+          config: "burp-config.json"
+
+# Advanced Build Configurations
+build-systems:
+  # Python build system
+  python:
+    - directory: "/python-apps"
+      build-tool: "poetry"
+      config-file: "pyproject.toml"
+      environments:
+        - name: "development"
+          dependencies:
+            - "pytest"
+            - "black"
+            - "mypy"
+        - name: "production"
+          optimizations:
+            - "wheel"
+            - "binary"
+      
+  # JavaScript/TypeScript build system
+  javascript:
+    - directory: "/js-apps"
+      build-tool: "webpack"
+      config-file: "webpack.config.js"
+      environments:
+        - name: "development"
+          features:
+            - "hot-reload"
+            - "source-maps"
+        - name: "production"
+          optimizations:
+            - "minification"
+            - "tree-shaking"
+
+# CI/CD Pipeline Enhancements
+ci-cd:
+  pipelines:
+    # Build pipeline
+    build:
+      triggers:
+        - push:
+            branches: ["main", "develop"]
+        - pull_request:
+            types: ["opened", "synchronize"]
+      stages:
+        - name: "lint"
+          steps:
+            - "black ."
+            - "pylint **/*.py"
+            - "eslint **/*.{js,ts}"
+        - name: "test"
+          steps:
+            - "pytest"
+            - "jest"
+        - name: "security-scan"
+          steps:
+            - "bandit -r ."
+            - "npm audit"
+        - name: "build"
+          steps:
+            - "docker build -t app ."
+
+    # Deployment pipeline
+    deploy:
+      environments:
+        staging:
+          url: "https://staging.your-app.com"
+          protection-rules:
+            required-reviewers: 1
+            wait-timer: 10m
+        production:
+          url: "https://your-app.com"
+          protection-rules:
+            required-reviewers: 2
+            wait-timer: 1h
+
+# Code Quality and Standards
+code-quality:
+  linters:
+    python:
+      - tool: "black"
+        config: "pyproject.toml"
+      - tool: "pylint"
+        config: ".pylintrc"
+      - tool: "mypy"
+        config: "mypy.ini"
+    javascript:
+      - tool: "eslint"
+        config: ".eslintrc"
+      - tool: "prettier"
+        config: ".prettierrc"
+
+  # Testing configurations
+  testing:
+    unit-tests:
+      - framework: "pytest"
+        config: "pytest.ini"
+      - framework: "jest"
+        config: "jest.config.js"
+    integration-tests:
+      - framework: "behave"
+        features: "tests/features"
+      - framework: "cypress"
+        config: "cypress.json"
+
+# AI/ML Development Support
+ai-ml-support:
+  experiment-tracking:
+    - tool: "mlflow"
+      config: "mlflow.yml"
+    - tool: "wandb"
+      config: "wandb.yml"
+  
+  model-versioning:
+    - tool: "dvc"
+      remote: "s3://your-bucket/models"
+    
+  gpu-management:
+    - tool: "nvidia-docker"
+      config: "gpu.conf"
+
+# Monitoring and Observability
+monitoring:
+  metrics:
+    - tool: "prometheus"
+      config: "prometheus.yml"
+      targets:
+        - "app-metrics:9090"
+        - "ml-metrics:9091"
+    
+  logging:
+    - tool: "elastic-stack"
+      config: "logstash.yml"
+      
+  tracing:
+    - tool: "jaeger"
+      config: "jaeger.yml"
+
+# Development Environment
+dev-environment:
+  containers:
+    - name: "dev-container"
+      image: "your-org/dev-env:latest"
+      volumes:
+        - ".:/workspace"
+      
+  vs-code:
+    extensions:
+      - "ms-python.python"
+      - "dbaeumer.vscode-eslint"
+      
+  git-hooks:
+    pre-commit:
+      - "black"
+      - "pylint"
+    pre-push:
+      - "pytest"
+
+# Custom Automation Scripts
+automation:
+  scripts:
+    - name: "setup-dev-env"
+      path: "scripts/setup-dev.sh"
+    - name: "update-dependencies"
+      path: "scripts/update-deps.py"
+    - name: "health-check"
+      path: "scripts/health-check.sh"
+
+      
+    
